@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Text;
-using MiniWord;
+using MiniSoftware;
 
 namespace WordTemplateToPdf;
 
@@ -94,7 +94,7 @@ public static class Program
 
         Console.WriteLine("Preparing NEW_ document copy...");
         Console.WriteLine("Replacing placeholders...");
-        MiniWord.MiniWord.SaveAsByTemplate(outputDocxPath, inputDocxPath, PlaceholderValues);
+        MiniWord.SaveAsByTemplate(outputDocxPath, inputDocxPath, PlaceholderValues);
 
         Console.WriteLine($"Updated document saved: {outputDocxPath}");
         Console.WriteLine("Converting to PDF with LibreOffice Headless...");
