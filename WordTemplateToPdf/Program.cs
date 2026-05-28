@@ -1,5 +1,3 @@
-using System.Diagnostics;
-using System.Text;
 using Xceed.Document.NET;
 using Xceed.Words.NET;
 
@@ -42,8 +40,8 @@ public static class Program
             var validatedPath = ValidateInputPath(inputPath);
             Console.WriteLine("Input validated.");
 
-            var outputPdfPath = ProcessDocument(validatedPath);
-            Console.WriteLine($"PDF generated successfully: {outputPdfPath}");
+            var outputDocxPath = ProcessDocument(validatedPath);
+            Console.WriteLine($"Document generated successfully: {outputDocxPath}");
             return 0;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -91,8 +89,6 @@ public static class Program
         var outputDirectory = Path.GetDirectoryName(inputDocxPath)
                               ?? throw new InvalidOperationException("Could not determine output directory.");
         var outputDocxPath = Path.Combine(outputDirectory, $"NEW_{Path.GetFileName(inputDocxPath)}");
-        var outputPdfPath = Path.Combine(outputDirectory, $"{Path.GetFileNameWithoutExtension(outputDocxPath)}.pdf");
-
         Console.WriteLine("Preparing NEW_ document copy...");
         File.Copy(inputDocxPath, outputDocxPath, overwrite: true);
 
@@ -108,97 +104,6 @@ public static class Program
         }
 
         Console.WriteLine($"Updated document saved: {outputDocxPath}");
-        Console.WriteLine("Converting to PDF with LibreOffice Headless...");
-        ConvertDocxToPdf(outputDocxPath, outputDirectory);
-
-        if (!File.Exists(outputPdfPath))
-        {
-            throw new InvalidOperationException($"PDF conversion failed. Expected output file was not created: {outputPdfPath}");
-        }
-
-        return outputPdfPath;
+        return outputDocxPath;
     }
-
-    private static void ConvertDocxToPdf(string docxPath, string outputDirectory)
-    {
-        var processResult = RunLibreOffice("soffice", docxPath, outputDirectory);
-        if (processResult.ExitCode == 0)
-        {
-            return;
-        }
-
-        processResult = RunLibreOffice("libreoffice", docxPath, outputDirectory);
-        if (processResult.ExitCode == 0)
-        {
-            return;
-        }
-
-        throw new InvalidOperationException(
-            $"LibreOffice conversion failed using both 'soffice' and 'libreoffice'. " +
-            $"Exit code: {processResult.ExitCode}. Error: {processResult.StandardError}");
-    }
-
-    private static ProcessResult RunLibreOffice(string executable, string docxPath, string outputDirectory)
-    {
-        try
-        {
-            using var process = new Process();
-            process.StartInfo = new ProcessStartInfo
-            {
-                FileName = executable,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            process.StartInfo.ArgumentList.Add("--headless");
-            process.StartInfo.ArgumentList.Add("--convert-to");
-            process.StartInfo.ArgumentList.Add("pdf");
-            process.StartInfo.ArgumentList.Add(docxPath);
-            process.StartInfo.ArgumentList.Add("--outdir");
-            process.StartInfo.ArgumentList.Add(outputDirectory);
-
-            var standardOutput = new StringBuilder();
-            var standardError = new StringBuilder();
-
-            process.OutputDataReceived += (_, e) =>
-            {
-                if (e.Data is not null)
-                {
-                    standardOutput.AppendLine(e.Data);
-                }
-            };
-
-            process.ErrorDataReceived += (_, e) =>
-            {
-                if (e.Data is not null)
-                {
-                    standardError.AppendLine(e.Data);
-                }
-            };
-
-            if (!process.Start())
-            {
-                throw new InvalidOperationException($"Failed to start {executable} process.");
-            }
-
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-
-            if (!process.WaitForExit(120_000))
-            {
-                process.Kill(entireProcessTree: true);
-                throw new TimeoutException($"LibreOffice process '{executable}' timed out.");
-            }
-
-            return new ProcessResult(process.ExitCode, standardOutput.ToString(), standardError.ToString());
-        }
-        catch (System.ComponentModel.Win32Exception)
-        {
-            return new ProcessResult(-1, string.Empty, $"Executable '{executable}' not found in PATH.");
-        }
-    }
-
-    private sealed record ProcessResult(int ExitCode, string StandardOutput, string StandardError);
 }
