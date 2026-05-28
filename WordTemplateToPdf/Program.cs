@@ -90,46 +90,33 @@ public static class Program
     {
         var outputDirectory = Path.GetDirectoryName(inputDocxPath)
                               ?? throw new InvalidOperationException("Could not determine output directory.");
-        var outputPdfPath = Path.Combine(outputDirectory, $"{Path.GetFileNameWithoutExtension(inputDocxPath)}.pdf");
+        var outputDocxPath = Path.Combine(outputDirectory, $"NEW_{Path.GetFileName(inputDocxPath)}");
+        var outputPdfPath = Path.Combine(outputDirectory, $"{Path.GetFileNameWithoutExtension(outputDocxPath)}.pdf");
 
-        var tempDirectory = Path.Combine(Path.GetTempPath(), $"word-template-{Guid.NewGuid():N}");
-        var tempDocxPath = Path.Combine(tempDirectory, Path.GetFileName(inputDocxPath));
+        Console.WriteLine("Preparing NEW_ document copy...");
+        File.Copy(inputDocxPath, outputDocxPath, overwrite: true);
 
-        Directory.CreateDirectory(tempDirectory);
-
-        try
+        Console.WriteLine("Replacing placeholders...");
+        using (var document = DocX.Load(outputDocxPath))
         {
-            Console.WriteLine("Preparing working copy...");
-            File.Copy(inputDocxPath, tempDocxPath, overwrite: true);
-
-            Console.WriteLine("Replacing placeholders...");
-            using (var document = DocX.Load(tempDocxPath))
+            foreach (var placeholder in PlaceholderValues)
             {
-                foreach (var placeholder in PlaceholderValues)
-                {
-                    document.ReplaceText(placeholder.Key, placeholder.Value);
-                }
-
-                document.Save();
+                document.ReplaceText(placeholder.Key, placeholder.Value);
             }
 
-            Console.WriteLine("Converting to PDF with LibreOffice Headless...");
-            ConvertDocxToPdf(tempDocxPath, outputDirectory);
-
-            if (!File.Exists(outputPdfPath))
-            {
-                throw new InvalidOperationException($"PDF conversion failed. Expected output file was not created: {outputPdfPath}");
-            }
-
-            return outputPdfPath;
+            document.Save();
         }
-        finally
+
+        Console.WriteLine($"Updated document saved: {outputDocxPath}");
+        Console.WriteLine("Converting to PDF with LibreOffice Headless...");
+        ConvertDocxToPdf(outputDocxPath, outputDirectory);
+
+        if (!File.Exists(outputPdfPath))
         {
-            if (Directory.Exists(tempDirectory))
-            {
-                Directory.Delete(tempDirectory, recursive: true);
-            }
+            throw new InvalidOperationException($"PDF conversion failed. Expected output file was not created: {outputPdfPath}");
         }
+
+        return outputPdfPath;
     }
 
     private static void ConvertDocxToPdf(string docxPath, string outputDirectory)
