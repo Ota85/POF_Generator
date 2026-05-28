@@ -121,7 +121,7 @@ public static class Program
 
     private static void ConvertDocxToPdf(string docxPath, string outputDirectory)
     {
-        var processResult = RunLibreOffice("soffice", docxPath, outputDirectory);
+        var processResult = RunLibreOffice(@"C:\Program Files\LibreOffice\program\soffice.exe", docxPath, outputDirectory);
         if (processResult.ExitCode == 0)
         {
             return;
