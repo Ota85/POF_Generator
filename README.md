@@ -5,7 +5,7 @@
 A .NET 8 console app that:
 
 1. Loads a `.docx` Word template.
-2. Replaces known placeholders with dummy data using `Xceed.Words.NET` (DocX).
+2. Replaces known placeholders with dummy data using `DocX`.
 3. Converts the updated document to PDF using LibreOffice Headless (`soffice` / `libreoffice`).
 
 ### Run
