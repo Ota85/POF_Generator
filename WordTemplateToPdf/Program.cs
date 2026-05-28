@@ -107,11 +107,7 @@ public static class Program
             {
                 foreach (var placeholder in PlaceholderValues)
                 {
-                    document.ReplaceText(new StringReplaceTextOptions
-                    {
-                        SearchValue = placeholder.Key,
-                        NewValue = placeholder.Value
-                    });
+                    document.ReplaceText(placeholder.Key, placeholder.Value);
                 }
 
                 document.Save();
