@@ -5,7 +5,7 @@ using Xceed.Words.NET;
 
 namespace WordTemplateToPdf;
 
-internal static class Program
+public static class Program
 {
     private static readonly IReadOnlyDictionary<string, string> PlaceholderValues = new Dictionary<string, string>
     {
@@ -58,7 +58,7 @@ internal static class Program
         }
     }
 
-    private static string ValidateInputPath(string? inputPath)
+    public static string ValidateInputPath(string? inputPath)
     {
         if (string.IsNullOrWhiteSpace(inputPath))
         {
