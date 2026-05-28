@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Text;
-using Xceed.Document.NET;
-using Xceed.Words.NET;
+using MiniSoftware;
 
 namespace WordTemplateToPdf;
 
@@ -94,18 +93,12 @@ public static class Program
         var outputPdfPath = Path.Combine(outputDirectory, $"{Path.GetFileNameWithoutExtension(outputDocxPath)}.pdf");
 
         Console.WriteLine("Preparing NEW_ document copy...");
-        File.Copy(inputDocxPath, outputDocxPath, overwrite: true);
-
         Console.WriteLine("Replacing placeholders...");
-        using (var document = DocX.Load(outputDocxPath))
-        {
-            foreach (var placeholder in PlaceholderValues)
-            {
-                document.ReplaceText(placeholder.Key, placeholder.Value);
-            }
-
-            document.Save();
-        }
+        var templateValues = PlaceholderValues.ToDictionary(
+            entry => NormalizeTemplateKey(entry.Key),
+            entry => entry.Value,
+            StringComparer.Ordinal);
+        MiniWord.SaveAsByTemplate(outputDocxPath, inputDocxPath, templateValues);
 
         Console.WriteLine($"Updated document saved: {outputDocxPath}");
         Console.WriteLine("Converting to PDF with LibreOffice Headless...");
@@ -198,6 +191,19 @@ public static class Program
         {
             return new ProcessResult(-1, string.Empty, $"Executable '{executable}' not found in PATH.");
         }
+    }
+
+    private static string NormalizeTemplateKey(string key)
+    {
+        var normalized = key.Trim();
+        if (normalized.StartsWith("{{", StringComparison.Ordinal) &&
+            normalized.EndsWith("}}", StringComparison.Ordinal) &&
+            normalized.Length > 4)
+        {
+            return normalized[2..^2].Trim();
+        }
+
+        return normalized;
     }
 
     private sealed record ProcessResult(int ExitCode, string StandardOutput, string StandardError);
