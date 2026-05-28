@@ -94,11 +94,33 @@ public static class Program
 
         Console.WriteLine("Preparing NEW_ document copy...");
         Console.WriteLine("Replacing placeholders...");
-        var templateValues = PlaceholderValues.ToDictionary(
-            entry => NormalizeTemplateKey(entry.Key),
-            entry => entry.Value,
-            StringComparer.Ordinal);
-        MiniWord.SaveAsByTemplate(outputDocxPath, inputDocxPath, templateValues);
+
+        var templateData = new
+        {
+            LoanNumber = PlaceholderValues["{{LoanNumber}}"],
+            FirstName = PlaceholderValues["{{FirstName}}"],
+            LastName = PlaceholderValues["{{LastName}}"],
+            PersonalIdentifierNumber = PlaceholderValues["{{PersonalIdentifierNumber}}"],
+            PermanentStreet = PlaceholderValues["{{PermanentStreet}}"],
+            PermanentCity = PlaceholderValues["{{PermanentCity}}"],
+            PermanentZipCode = PlaceholderValues["{{PermanentZipCode}}"],
+            ContactStreet = PlaceholderValues["{{ContactStreet}}"],             
+            ContactCity = PlaceholderValues["{{ContactCity}}"],
+            ContactZipCode = PlaceholderValues["{{ContactZipCode}}"],
+            PhoneNumber = PlaceholderValues["{{PhoneNumber}}"],
+            Email = PlaceholderValues["{{Email}}"],
+            LoanAmount = PlaceholderValues["{{LoanAmount}}"],
+            FeeWithoutDiscount = PlaceholderValues["{{FeeWithoutDiscount}}"],
+            Fee = PlaceholderValues["{{Fee}}"],
+            VariableSymbol = PlaceholderValues["{{VariableSymbol}}"],
+            HardDueDate = PlaceholderValues["{{HardDueDate}}"],
+            AmountToPayWithoutDiscount = PlaceholderValues["{{AmountToPayWithoutDiscount}}"],
+            AmountToPay = PlaceholderValues["{{AmountToPay}}"],
+            AprWithoutDiscount = PlaceholderValues["{{AprWithoutDiscount}}"],
+            Apr = PlaceholderValues["{{Apr}}"]      
+        };
+
+        MiniWord.SaveAsByTemplate(outputDocxPath, inputDocxPath, templateData);
 
         Console.WriteLine($"Updated document saved: {outputDocxPath}");
         Console.WriteLine("Converting to PDF with LibreOffice Headless...");
