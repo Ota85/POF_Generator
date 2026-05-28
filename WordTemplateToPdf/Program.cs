@@ -8,27 +8,27 @@ public static class Program
 {
     private static readonly IReadOnlyDictionary<string, string> PlaceholderValues = new Dictionary<string, string>
     {
-        ["LoanNumber"] = "LN-2026-0001",
-        ["FirstName"] = "John",
-        ["LastName"] = "Doe",
-        ["PersonalIdentifierNumber"] = "8501011234",
-        ["PermanentStreet"] = "Main Street 12",
-        ["PermanentCity"] = "Bratislava",
-        ["PermanentZipCode"] = "81101",
-        ["ContactStreet"] = "Second Avenue 45",
-        ["ContactCity"] = "Kosice",
-        ["ContactZipCode"] = "04001",
-        ["PhoneNumber"] = "+421900000000",
-        ["Email"] = "john.doe@example.com",
-        ["LoanAmount"] = "10000.00",
-        ["FeeWithoutDiscount"] = "250.00",
-        ["Fee"] = "200.00",
-        ["VariableSymbol"] = "1234567890",
-        ["HardDueDate"] = "2026-12-31",
-        ["AmountToPayWithoutDiscount"] = "10250.00",
-        ["AmountToPay"] = "10200.00",
-        ["AprWithoutDiscount"] = "14.90%",
-        ["Apr"] = "12.90%"
+        ["{{LoanNumber}}"] = "LN-2026-0001",
+        ["{{FirstName}}"] = "John",
+        ["{{LastName}}"] = "Doe",
+        ["{{PersonalIdentifierNumber}}"] = "8501011234",
+        ["{{PermanentStreet}}"] = "Main Street 12",
+        ["{{PermanentCity}}"] = "Bratislava",
+        ["{{PermanentZipCode}}"] = "81101",
+        ["{{ContactStreet}}"] = "Second Avenue 45",
+        ["{{ContactCity}}"] = "Kosice",
+        ["{{ContactZipCode}}"] = "04001",
+        ["{{PhoneNumber}}"] = "+421900000000",
+        ["{{Email}}"] = "john.doe@example.com",
+        ["{{LoanAmount}}"] = "10000.00",
+        ["{{FeeWithoutDiscount}}"] = "250.00",
+        ["{{Fee}}"] = "200.00",
+        ["{{VariableSymbol}}"] = "1234567890",
+        ["{{HardDueDate}}"] = "2026-12-31",
+        ["{{AmountToPayWithoutDiscount}}"] = "10250.00",
+        ["{{AmountToPay}}"] = "10200.00",
+        ["{{AprWithoutDiscount}}"] = "14.90%",
+        ["{{Apr}}"] = "12.90%"
     };
 
     private static int Main()
@@ -94,7 +94,11 @@ public static class Program
 
         Console.WriteLine("Preparing NEW_ document copy...");
         Console.WriteLine("Replacing placeholders...");
-        MiniWord.SaveAsByTemplate(outputDocxPath, inputDocxPath, PlaceholderValues);
+        var templateValues = PlaceholderValues.ToDictionary(
+            entry => NormalizeTemplateKey(entry.Key),
+            entry => entry.Value,
+            StringComparer.Ordinal);
+        MiniWord.SaveAsByTemplate(outputDocxPath, inputDocxPath, templateValues);
 
         Console.WriteLine($"Updated document saved: {outputDocxPath}");
         Console.WriteLine("Converting to PDF with LibreOffice Headless...");
@@ -187,6 +191,19 @@ public static class Program
         {
             return new ProcessResult(-1, string.Empty, $"Executable '{executable}' not found in PATH.");
         }
+    }
+
+    private static string NormalizeTemplateKey(string key)
+    {
+        var normalized = key.Trim();
+        if (normalized.StartsWith("{{", StringComparison.Ordinal) &&
+            normalized.EndsWith("}}", StringComparison.Ordinal) &&
+            normalized.Length > 4)
+        {
+            return normalized[2..^2].Trim();
+        }
+
+        return normalized;
     }
 
     private sealed record ProcessResult(int ExitCode, string StandardOutput, string StandardError);
