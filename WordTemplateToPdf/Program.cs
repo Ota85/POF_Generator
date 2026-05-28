@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Text;
-using Xceed.Document.NET;
-using Xceed.Words.NET;
+using MiniWord;
 
 namespace WordTemplateToPdf;
 
@@ -9,27 +8,27 @@ public static class Program
 {
     private static readonly IReadOnlyDictionary<string, string> PlaceholderValues = new Dictionary<string, string>
     {
-        ["{{LoanNumber}}"] = "LN-2026-0001",
-        ["{{FirstName}}"] = "John",
-        ["{{LastName}}"] = "Doe",
-        ["{{PersonalIdentifierNumber}}"] = "8501011234",
-        ["{{PermanentStreet}}"] = "Main Street 12",
-        ["{{PermanentCity}}"] = "Bratislava",
-        ["{{PermanentZipCode}}"] = "81101",
-        ["{{ContactStreet}}"] = "Second Avenue 45",
-        ["{{ContactCity}}"] = "Kosice",
-        ["{{ContactZipCode}}"] = "04001",
-        ["{{PhoneNumber}}"] = "+421900000000",
-        ["{{Email}}"] = "john.doe@example.com",
-        ["{{LoanAmount}}"] = "10000.00",
-        ["{{FeeWithoutDiscount}}"] = "250.00",
-        ["{{Fee}}"] = "200.00",
-        ["{{VariableSymbol}}"] = "1234567890",
-        ["{{HardDueDate}}"] = "2026-12-31",
-        ["{{AmountToPayWithoutDiscount}}"] = "10250.00",
-        ["{{AmountToPay}}"] = "10200.00",
-        ["{{AprWithoutDiscount}}"] = "14.90%",
-        ["{{Apr}}"] = "12.90%"
+        ["LoanNumber"] = "LN-2026-0001",
+        ["FirstName"] = "John",
+        ["LastName"] = "Doe",
+        ["PersonalIdentifierNumber"] = "8501011234",
+        ["PermanentStreet"] = "Main Street 12",
+        ["PermanentCity"] = "Bratislava",
+        ["PermanentZipCode"] = "81101",
+        ["ContactStreet"] = "Second Avenue 45",
+        ["ContactCity"] = "Kosice",
+        ["ContactZipCode"] = "04001",
+        ["PhoneNumber"] = "+421900000000",
+        ["Email"] = "john.doe@example.com",
+        ["LoanAmount"] = "10000.00",
+        ["FeeWithoutDiscount"] = "250.00",
+        ["Fee"] = "200.00",
+        ["VariableSymbol"] = "1234567890",
+        ["HardDueDate"] = "2026-12-31",
+        ["AmountToPayWithoutDiscount"] = "10250.00",
+        ["AmountToPay"] = "10200.00",
+        ["AprWithoutDiscount"] = "14.90%",
+        ["Apr"] = "12.90%"
     };
 
     private static int Main()
@@ -94,18 +93,8 @@ public static class Program
         var outputPdfPath = Path.Combine(outputDirectory, $"{Path.GetFileNameWithoutExtension(outputDocxPath)}.pdf");
 
         Console.WriteLine("Preparing NEW_ document copy...");
-        File.Copy(inputDocxPath, outputDocxPath, overwrite: true);
-
         Console.WriteLine("Replacing placeholders...");
-        using (var document = DocX.Load(outputDocxPath))
-        {
-            foreach (var placeholder in PlaceholderValues)
-            {
-                document.ReplaceText(placeholder.Key, placeholder.Value);
-            }
-
-            document.Save();
-        }
+        MiniWord.MiniWord.SaveAsByTemplate(outputDocxPath, inputDocxPath, PlaceholderValues);
 
         Console.WriteLine($"Updated document saved: {outputDocxPath}");
         Console.WriteLine("Converting to PDF with LibreOffice Headless...");
