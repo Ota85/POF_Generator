@@ -1,34 +1,42 @@
 using System.Diagnostics;
 using System.Text;
+using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Wordprocessing;
 using MiniSoftware;
 
 namespace WordTemplateToPdf;
 
 public static class Program
 {
+    private const string TemplateTagPrefix = "[[";
+    private const string TemplateTagSuffix = "]]";
+    private const string MiniWordTagPrefix = "{{";
+    private const string MiniWordTagSuffix = "}}";
+
     private static readonly IReadOnlyDictionary<string, string> PlaceholderValues = new Dictionary<string, string>
     {
-        ["{{LoanNumber}}"] = "LN-2026-0001",
-        ["{{FirstName}}"] = "John",
-        ["{{LastName}}"] = "Doe",
-        ["{{PersonalIdentifierNumber}}"] = "8501011234",
-        ["{{PermanentStreet}}"] = "Main Street 12",
-        ["{{PermanentCity}}"] = "Bratislava",
-        ["{{PermanentZipCode}}"] = "81101",
-        ["{{ContactStreet}}"] = "Second Avenue 45",
-        ["{{ContactCity}}"] = "Kosice",
-        ["{{ContactZipCode}}"] = "04001",
-        ["{{PhoneNumber}}"] = "+421900000000",
-        ["{{Email}}"] = "john.doe@example.com",
-        ["{{LoanAmount}}"] = "10000.00",
-        ["{{FeeWithoutDiscount}}"] = "250.00",
-        ["{{Fee}}"] = "200.00",
-        ["{{VariableSymbol}}"] = "1234567890",
-        ["{{HardDueDate}}"] = "2026-12-31",
-        ["{{AmountToPayWithoutDiscount}}"] = "10250.00",
-        ["{{AmountToPay}}"] = "10200.00",
-        ["{{AprWithoutDiscount}}"] = "14.90%",
-        ["{{Apr}}"] = "12.90%"
+        ["[[LoanNumber]]"] = "LN-2026-0001",
+        ["[[FirstName]]"] = "John",
+        ["[[LastName]]"] = "Doe",
+        ["[[PersonalIdentifierNumber]]"] = "8501011234",
+        ["[[PermanentStreet]]"] = "Main Street 12",
+        ["[[PermanentCity]]"] = "Bratislava",
+        ["[[PermanentZipCode]]"] = "81101",
+        ["[[ContactStreet]]"] = "Second Avenue 45",
+        ["[[ContactCity]]"] = "Kosice",
+        ["[[ContactZipCode]]"] = "04001",
+        ["[[PhoneNumber]]"] = "+421900000000",
+        ["[[Email]]"] = "john.doe@example.com",
+        ["[[LoanAmount]]"] = "10000.00",
+        ["[[FeeWithoutDiscount]]"] = "250.00",
+        ["[[Fee]]"] = "200.00",
+        ["[[VariableSymbol]]"] = "1234567890",
+        ["[[HardDueDate]]"] = "2026-12-31",
+        ["[[AmountToPayWithoutDiscount]]"] = "10250.00",
+        ["[[AmountToPay]]"] = "10200.00",
+        ["[[AprWithoutDiscount]]"] = "14.90%",
+        ["[[Apr]]"] = "12.90%"
     };
 
     private static int Main()
@@ -96,32 +104,10 @@ public static class Program
         Console.WriteLine("Preparing NEW_ document copy...");
         Console.WriteLine("Replacing placeholders...");
 
-        var templateData = new
-        {
-            LoanNumber = PlaceholderValues["{{LoanNumber}}"],
-            FirstName = PlaceholderValues["{{FirstName}}"],
-            LastName = PlaceholderValues["{{LastName}}"],
-            PersonalIdentifierNumber = PlaceholderValues["{{PersonalIdentifierNumber}}"],
-            PermanentStreet = PlaceholderValues["{{PermanentStreet}}"],
-            PermanentCity = PlaceholderValues["{{PermanentCity}}"],
-            PermanentZipCode = PlaceholderValues["{{PermanentZipCode}}"],
-            ContactStreet = PlaceholderValues["{{ContactStreet}}"],             
-            ContactCity = PlaceholderValues["{{ContactCity}}"],
-            ContactZipCode = PlaceholderValues["{{ContactZipCode}}"],
-            PhoneNumber = PlaceholderValues["{{PhoneNumber}}"],
-            Email = PlaceholderValues["{{Email}}"],
-            LoanAmount = PlaceholderValues["{{LoanAmount}}"],
-            FeeWithoutDiscount = PlaceholderValues["{{FeeWithoutDiscount}}"],
-            Fee = PlaceholderValues["{{Fee}}"],
-            VariableSymbol = PlaceholderValues["{{VariableSymbol}}"],
-            HardDueDate = PlaceholderValues["{{HardDueDate}}"],
-            AmountToPayWithoutDiscount = PlaceholderValues["{{AmountToPayWithoutDiscount}}"],
-            AmountToPay = PlaceholderValues["{{AmountToPay}}"],
-            AprWithoutDiscount = PlaceholderValues["{{AprWithoutDiscount}}"],
-            Apr = PlaceholderValues["{{Apr}}"]      
-        };
+        var templateData = CreateTemplateData();
+        var miniWordTemplateBytes = PrepareMiniWordTemplate(inputDocxPath);
 
-        MiniWord.SaveAsByTemplate(outputDocxPath, inputDocxPath, templateData);
+        MiniWord.SaveAsByTemplate(outputDocxPath, miniWordTemplateBytes, templateData);
 
         Console.WriteLine($"Updated document saved: {outputDocxPath}");
         Console.WriteLine("Converting to PDF with LibreOffice Headless...");
@@ -216,17 +202,130 @@ public static class Program
         }
     }
 
-    private static string NormalizeTemplateKey(string key)
+    internal static IReadOnlyDictionary<string, object> CreateTemplateData()
+    {
+        return PlaceholderValues.ToDictionary(
+            placeholder => NormalizeTemplateKey(placeholder.Key),
+            placeholder => (object)placeholder.Value);
+    }
+
+    private static byte[] PrepareMiniWordTemplate(string inputDocxPath)
+    {
+        var templateBytes = File.ReadAllBytes(inputDocxPath);
+        using var stream = new MemoryStream();
+        stream.Write(templateBytes, 0, templateBytes.Length);
+        stream.Position = 0;
+
+        using (var document = WordprocessingDocument.Open(stream, true))
+        {
+            ReplaceTemplateDelimiters(document.MainDocumentPart?.Document);
+
+            foreach (var headerPart in document.MainDocumentPart?.HeaderParts ?? Enumerable.Empty<HeaderPart>())
+            {
+                ReplaceTemplateDelimiters(headerPart.Header);
+            }
+
+            foreach (var footerPart in document.MainDocumentPart?.FooterParts ?? Enumerable.Empty<FooterPart>())
+            {
+                ReplaceTemplateDelimiters(footerPart.Footer);
+            }
+
+            document.Save();
+        }
+
+        return stream.ToArray();
+    }
+
+    private static void ReplaceTemplateDelimiters(OpenXmlPartRootElement? rootElement)
+    {
+        if (rootElement is null)
+        {
+            return;
+        }
+
+        MergeSplitTemplateTags(rootElement);
+
+        foreach (var text in rootElement.Descendants<Text>())
+        {
+            text.Text = text.Text
+                .Replace(TemplateTagPrefix, MiniWordTagPrefix, StringComparison.Ordinal)
+                .Replace(TemplateTagSuffix, MiniWordTagSuffix, StringComparison.Ordinal);
+        }
+    }
+
+    private static void MergeSplitTemplateTags(OpenXmlElement xmlElement)
+    {
+        var textNodes = xmlElement.Descendants<Text>().ToList();
+        var pendingTextNodes = new List<Text>();
+        var mergedText = new StringBuilder();
+        var insideTag = false;
+
+        foreach (var textNode in textNodes)
+        {
+            var completedTag = false;
+            if (textNode.InnerText.TrimStart().StartsWith("[", StringComparison.Ordinal))
+            {
+                insideTag = true;
+            }
+
+            if (insideTag)
+            {
+                mergedText.Append(textNode.InnerText);
+                pendingTextNodes.Add(textNode);
+
+                var candidate = mergedText.ToString().TrimStart();
+                var foreachBalanced = candidate.Split(new[] { "[[foreach" }, StringSplitOptions.None).Length - 1 ==
+                                      candidate.Split(new[] { "endforeach]]" }, StringSplitOptions.None).Length - 1;
+                var ifBalanced = candidate.Split(new[] { "[[if" }, StringSplitOptions.None).Length - 1 ==
+                                 candidate.Split(new[] { "endif]]" }, StringSplitOptions.None).Length - 1;
+                var hasFullTag = candidate.StartsWith(TemplateTagPrefix, StringComparison.Ordinal) &&
+                                 candidate.Contains(TemplateTagSuffix, StringComparison.Ordinal);
+
+                if (foreachBalanced && ifBalanced && hasFullTag)
+                {
+                    if (mergedText.Length <= 1000)
+                    {
+                        var firstTextNode = pendingTextNodes[0];
+                        var mergedNode = (Text)firstTextNode.CloneNode(true);
+                        mergedNode.Text = candidate;
+                        firstTextNode.Parent?.InsertBefore(mergedNode, firstTextNode);
+
+                        foreach (var pendingTextNode in pendingTextNodes)
+                        {
+                            pendingTextNode.Text = string.Empty;
+                        }
+                    }
+
+                    completedTag = true;
+                }
+            }
+
+            if (completedTag)
+            {
+                mergedText.Clear();
+                pendingTextNodes.Clear();
+                insideTag = false;
+            }
+        }
+    }
+
+    internal static string NormalizeTemplateKey(string key)
     {
         var normalized = key.Trim();
-        if (normalized.StartsWith("{{", StringComparison.Ordinal) &&
-            normalized.EndsWith("}}", StringComparison.Ordinal) &&
-            normalized.Length > 4)
+        if (HasWrappingDelimiters(normalized, TemplateTagPrefix, TemplateTagSuffix) ||
+            HasWrappingDelimiters(normalized, MiniWordTagPrefix, MiniWordTagSuffix))
         {
             return normalized[2..^2].Trim();
         }
 
         return normalized;
+    }
+
+    private static bool HasWrappingDelimiters(string value, string prefix, string suffix)
+    {
+        return value.StartsWith(prefix, StringComparison.Ordinal) &&
+               value.EndsWith(suffix, StringComparison.Ordinal) &&
+               value.Length > prefix.Length + suffix.Length;
     }
 
     private sealed record ProcessResult(int ExitCode, string StandardOutput, string StandardError);

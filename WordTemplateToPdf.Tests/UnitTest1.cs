@@ -41,4 +41,25 @@ public class UnitTest1
             }
         }
     }
+
+    [Theory]
+    [InlineData("[[LoanNumber]]", "LoanNumber")]
+    [InlineData("{{LoanNumber}}", "LoanNumber")]
+    [InlineData("LoanNumber", "LoanNumber")]
+    public void NormalizeTemplateKey_SupportsSquareAndCurlyDelimiters(string key, string expected)
+    {
+        var result = WordTemplateToPdf.Program.NormalizeTemplateKey(key);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void CreateTemplateData_UsesNormalizedKeysWithoutDelimiters()
+    {
+        var result = WordTemplateToPdf.Program.CreateTemplateData();
+
+        Assert.Contains("LoanNumber", result.Keys);
+        Assert.DoesNotContain("[[LoanNumber]]", result.Keys);
+        Assert.Equal("LN-2026-0001", Assert.IsType<string>(result["LoanNumber"]));
+    }
 }
