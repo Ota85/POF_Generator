@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Linq.Expressions;
 using System.Text;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
@@ -13,6 +14,7 @@ public static class Program
     private const string TemplateTagSuffix = "]]";
     private const string MiniWordTagPrefix = "{{";
     private const string MiniWordTagSuffix = "}}";
+    private const string UseLegacyOpenXmlPreprocessingEnvVar = "WORD_TEMPLATE_USE_OPENXML_PREPROCESSING";
 
     private static readonly IReadOnlyDictionary<string, string> PlaceholderValues = new Dictionary<string, string>
     {
@@ -105,9 +107,16 @@ public static class Program
         Console.WriteLine("Replacing placeholders...");
 
         var templateData = CreateTemplateData();
-        var miniWordTemplateBytes = PrepareMiniWordTemplate(inputDocxPath);
 
-        MiniWord.SaveAsByTemplate(outputDocxPath, miniWordTemplateBytes, templateData);
+        if (!UseLegacyOpenXmlTemplatePreprocessing() && TryConfigureMiniWordTags())
+        {
+            MiniWord.SaveAsByTemplate(outputDocxPath, inputDocxPath, templateData);
+        }
+        else
+        {
+            var miniWordTemplateBytes = PrepareMiniWordTemplate(inputDocxPath);
+            MiniWord.SaveAsByTemplate(outputDocxPath, miniWordTemplateBytes, templateData);
+        }
 
         Console.WriteLine($"Updated document saved: {outputDocxPath}");
         Console.WriteLine("Converting to PDF with LibreOffice Headless...");
@@ -209,6 +218,65 @@ public static class Program
             placeholder => (object)placeholder.Value);
     }
 
+    private static bool TryConfigureMiniWordTags()
+    {
+        var configureMethod = typeof(MiniWord).GetMethod(
+            "Configure",
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+
+        if (configureMethod is null)
+        {
+            return false;
+        }
+
+        var configureParameterType = configureMethod.GetParameters().SingleOrDefault()?.ParameterType;
+        if (configureParameterType is null ||
+            !configureParameterType.IsGenericType ||
+            configureParameterType.GetGenericTypeDefinition() != typeof(Action<>))
+        {
+            return false;
+        }
+
+        var optionsType = configureParameterType.GetGenericArguments()[0];
+        var configureTagsMethod = optionsType.GetMethod(
+            "ConfigureTags",
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance,
+            binder: null,
+            types: [typeof(string), typeof(string)],
+            modifiers: null);
+
+        if (configureTagsMethod is null)
+        {
+            return false;
+        }
+
+        var optionsParameter = Expression.Parameter(optionsType, "options");
+        var configureTagsCall = Expression.Call(
+            optionsParameter,
+            configureTagsMethod,
+            Expression.Constant(TemplateTagPrefix),
+            Expression.Constant(TemplateTagSuffix));
+        var configurationDelegate = Expression
+            .Lambda(configureParameterType, configureTagsCall, optionsParameter)
+            .Compile();
+
+        configureMethod.Invoke(null, [configurationDelegate]);
+        return true;
+    }
+
+    internal static bool UseLegacyOpenXmlTemplatePreprocessing()
+    {
+        return ShouldUseLegacyOpenXmlPreprocessing(
+            Environment.GetEnvironmentVariable(UseLegacyOpenXmlPreprocessingEnvVar));
+    }
+
+    internal static bool ShouldUseLegacyOpenXmlPreprocessing(string? configuredValue)
+    {
+        return string.Equals(configuredValue, "1", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(configuredValue, "true", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Legacy fallback for split-run placeholder handling; disabled by default.
     private static byte[] PrepareMiniWordTemplate(string inputDocxPath)
     {
         var templateBytes = File.ReadAllBytes(inputDocxPath);

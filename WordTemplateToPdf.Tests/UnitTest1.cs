@@ -62,4 +62,19 @@ public class UnitTest1
         Assert.DoesNotContain("[[LoanNumber]]", result.Keys);
         Assert.Equal("LN-2026-0001", Assert.IsType<string>(result["LoanNumber"]));
     }
+
+    [Theory]
+    [InlineData("1", true)]
+    [InlineData("true", true)]
+    [InlineData("TRUE", true)]
+    [InlineData("0", false)]
+    [InlineData("false", false)]
+    [InlineData(null, false)]
+    [InlineData("", false)]
+    public void ShouldUseLegacyOpenXmlPreprocessing_ParsesExpectedValues(string? configuredValue, bool expected)
+    {
+        var result = WordTemplateToPdf.Program.ShouldUseLegacyOpenXmlPreprocessing(configuredValue);
+
+        Assert.Equal(expected, result);
+    }
 }
