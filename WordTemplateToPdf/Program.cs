@@ -33,8 +33,9 @@ public static class Program
 
     private static int Main()
     {
-        Console.Write("Enter path to .docx template: ");
+        Console.Write("Enter .docx template filename: ");    
         var inputPath = Console.ReadLine();
+        inputPath = @"c:\Users\Ota\Desktop\LinkSoft\PDF_generator\" + inputPath + @".docx";
 
         try
         {
