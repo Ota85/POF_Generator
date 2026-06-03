@@ -41,4 +41,40 @@ public class UnitTest1
             }
         }
     }
+
+    [Theory]
+    [InlineData("[[LoanNumber]]", "LoanNumber")]
+    [InlineData("{{LoanNumber}}", "LoanNumber")]
+    [InlineData("LoanNumber", "LoanNumber")]
+    public void NormalizeTemplateKey_SupportsSquareAndCurlyDelimiters(string key, string expected)
+    {
+        var result = WordTemplateToPdf.Program.NormalizeTemplateKey(key);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void CreateTemplateData_UsesNormalizedKeysWithoutDelimiters()
+    {
+        var result = WordTemplateToPdf.Program.CreateTemplateData();
+
+        Assert.Contains("LoanNumber", result.Keys);
+        Assert.DoesNotContain("[[LoanNumber]]", result.Keys);
+        Assert.Equal("LN-2026-0001", Assert.IsType<string>(result["LoanNumber"]));
+    }
+
+    [Theory]
+    [InlineData("1", true)]
+    [InlineData("true", true)]
+    [InlineData("TRUE", true)]
+    [InlineData("0", false)]
+    [InlineData("false", false)]
+    [InlineData(null, false)]
+    [InlineData("", false)]
+    public void ShouldUseLegacyOpenXmlPreprocessing_ParsesExpectedValues(string? configuredValue, bool expected)
+    {
+        var result = WordTemplateToPdf.Program.ShouldUseLegacyOpenXmlPreprocessing(configuredValue);
+
+        Assert.Equal(expected, result);
+    }
 }
